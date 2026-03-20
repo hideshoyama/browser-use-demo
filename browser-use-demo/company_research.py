@@ -45,12 +45,14 @@ CSV_HEADERS = ["会社名", "代表者名", "所在地", "事業内容", "公式
 # --- エージェントタスク ---
 
 def build_task(company_name: str) -> str:
+    search_url = f"https://www.google.com/search?q={company_name}+公式サイト&hl=ja"
     return f"""
 以下の手順で「{company_name}」の企業情報を収集してください。
 
-1. Google（https://www.google.com）で「{company_name} 公式サイト」を検索する
-2. 検索結果から公式サイト（企業の公式ドメイン）にアクセスする
-   - wikipedia、転職サイト、ニュースサイトなどは除外すること
+1. 次のURLに直接アクセスして検索結果を開く:
+   {search_url}
+2. 検索結果から公式サイト（企業の公式ドメイン）のリンクをクリックする
+   - wikipedia、転職サイト、ニュースサイトは除外すること
 3. 公式サイト内の「会社概要」「企業情報」「About Us」などのページも確認する
 4. 以下の情報を取得して返す:
    - 会社名（正式名称）
