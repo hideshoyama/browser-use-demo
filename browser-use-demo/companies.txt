@@ -1,3 +1,3 @@
-トヨタ自動車
-ソニーグループ
-任天堂
+トヨタ自動車,https://www.toyota.co.jp/
+ソニーグループ,https://www.sony.com/ja/
+任天堂,https://www.nintendo.co.jp/

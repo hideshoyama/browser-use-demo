@@ -1,6 +1,7 @@
 """
 企業情報自動収集スクリプト
-browser-use + Ollama（qwen2.5:7b）を使って企業の公式サイトから情報を収集する
+browser-use + Ollama（qwen2.5:3b）を使って企業の公式サイトから情報を収集する
+companies.txt に「企業名,公式URL」の形式で記載することでGoogle検索を回避する
 """
 
 import asyncio
@@ -39,27 +40,41 @@ class CompanyInfo(BaseModel):
 
 INPUT_FILE = Path("companies.txt")
 OUTPUT_FILE = Path("output.csv")
-CSV_HEADERS = ["会社名", "代表者名", "所在地", "事業内容", "公式サイトURL", "検索キーワード", "ステータス"]
+CSV_HEADERS = ["会社名", "代表者名", "所在地", "事業内容", "公式サイトURL", "入力企業名", "ステータス"]
+
+
+# --- 入力ファイル読み込み ---
+
+def load_companies() -> list[tuple[str, str]]:
+    """companies.txt を読み込み (企業名, URL) のリストを返す"""
+    companies = []
+    for line in INPUT_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(",", 1)
+        if len(parts) != 2:
+            logger.warning(f"形式エラー（スキップ）: {line}  ※ 「企業名,URL」の形式で記載してください")
+            continue
+        companies.append((parts[0].strip(), parts[1].strip()))
+    return companies
 
 
 # --- エージェントタスク ---
 
-def build_task(company_name: str) -> str:
-    search_url = f"https://www.google.com/search?q={company_name}+公式サイト&hl=ja"
+def build_task(company_name: str, url: str) -> str:
     return f"""
 以下の手順で「{company_name}」の企業情報を収集してください。
 
-1. 次のURLに直接アクセスして検索結果を開く:
-   {search_url}
-2. 検索結果から公式サイト（企業の公式ドメイン）のリンクをクリックする
-   - wikipedia、転職サイト、ニュースサイトは除外すること
-3. 公式サイト内の「会社概要」「企業情報」「About Us」などのページも確認する
-4. 以下の情報を取得して返す:
+1. 次の公式サイトURLに直接アクセスする:
+   {url}
+2. トップページを確認した後、「会社概要」「企業情報」「About Us」などのリンクを探してクリックする
+3. 以下の情報を収集して返す:
    - 会社名（正式名称）
    - 代表者名（役職と氏名。例: 代表取締役社長 山田 太郎）
    - 本社所在地（都道府県・市区町村レベルまで）
    - 事業内容（100文字以内）
-   - 公式サイトURL
+   - 公式サイトURL（アクセスしたURL）
 
 情報が見つからない項目は「不明」とすること。
 """
@@ -69,29 +84,28 @@ def build_task(company_name: str) -> str:
 
 async def research_company(
     company_name: str,
+    url: str,
     llm: ChatOllama,
     browser: Browser,
 ) -> Optional[CompanyInfo]:
     """1社分の企業情報を収集する"""
-    task = build_task(company_name)
+    task = build_task(company_name, url)
 
     agent = Agent(
         task=task,
         llm=llm,
         browser=browser,
-        use_vision=True,
+        use_vision=False,  # CPU負荷軽減のためvision無効
     )
 
     try:
-        result = await agent.run(max_steps=15)
+        result = await agent.run(max_steps=10)
 
-        # AgentHistoryList から最終出力を取得
         final_output = result.final_result()
         if not final_output:
             logger.warning(f"[{company_name}] エージェントが結果を返しませんでした")
             return None
 
-        # structured output として parse
         llm_structured = llm.with_structured_output(CompanyInfo)
         info: CompanyInfo = await llm_structured.ainvoke(
             f"以下のテキストから企業情報を構造化して抽出してください:\n\n{final_output}"
@@ -104,46 +118,34 @@ async def research_company(
 
 
 async def main() -> None:
-    # 入力ファイル確認
     if not INPUT_FILE.exists():
         logger.error(f"{INPUT_FILE} が見つかりません")
         sys.exit(1)
 
-    companies = [
-        line.strip()
-        for line in INPUT_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    companies = load_companies()
     if not companies:
-        logger.error("companies.txt に企業名がありません")
+        logger.error("companies.txt に有効な企業情報がありません")
         sys.exit(1)
 
     logger.info(f"{len(companies)} 社の情報収集を開始します")
 
-    # LLM 初期化（Ollama）
-    # function calling 対応モデルを使用
-    # 他の選択肢: llama3.1:8b, mistral-nemo
     llm = ChatOllama(
         model="qwen2.5:3b",
         temperature=0.0,
     )
 
-    # ブラウザ初期化（1インスタンスを使い回す）
-    # Codespaces / CI 環境ではディスプレイがないため headless=True
-    # ローカルでブラウザの動きを確認したい場合は False に変更
-    headless = True
     browser = Browser(
         config=BrowserConfig(
-            headless=headless,
+            headless=True,
         )
     )
 
     results: list[dict] = []
 
     try:
-        for company_name in companies:
-            logger.info(f"処理中: {company_name}")
-            info = await research_company(company_name, llm, browser)
+        for company_name, url in companies:
+            logger.info(f"処理中: {company_name} ({url})")
+            info = await research_company(company_name, url, llm, browser)
 
             if info:
                 results.append({
@@ -152,18 +154,18 @@ async def main() -> None:
                     "所在地": info.address,
                     "事業内容": info.business,
                     "公式サイトURL": info.website_url,
-                    "検索キーワード": company_name,
+                    "入力企業名": company_name,
                     "ステータス": "成功",
                 })
-                logger.info(f"[{company_name}] 完了: {info.website_url}")
+                logger.info(f"[{company_name}] 完了")
             else:
                 results.append({
                     "会社名": company_name,
                     "代表者名": "",
                     "所在地": "",
                     "事業内容": "",
-                    "公式サイトURL": "",
-                    "検索キーワード": company_name,
+                    "公式サイトURL": url,
+                    "入力企業名": company_name,
                     "ステータス": "失敗",
                 })
                 logger.warning(f"[{company_name}] スキップ（情報取得失敗）")
@@ -171,7 +173,6 @@ async def main() -> None:
     finally:
         await browser.close()
 
-    # CSV 出力（BOM付きUTF-8）
     with OUTPUT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_HEADERS)
         writer.writeheader()
