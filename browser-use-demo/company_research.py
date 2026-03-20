@@ -122,7 +122,7 @@ async def main() -> None:
     # function calling 対応モデルを使用
     # 他の選択肢: llama3.1:8b, mistral-nemo
     llm = ChatOllama(
-        model="qwen2.5:7b",
+        model="qwen2.5:3b",
         temperature=0.0,
     )
 
