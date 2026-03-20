@@ -1,6 +1,6 @@
 """
 企業情報自動収集スクリプト
-browser-use + Anthropic Claude を使って企業の公式サイトから情報を収集する
+browser-use + Ollama（qwen2.5:7b）を使って企業の公式サイトから情報を収集する
 """
 
 import asyncio
@@ -10,13 +10,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
+from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from browser_use import Agent, Browser, BrowserConfig
-
-# .env 読み込み
-load_dotenv()
 
 # ロギング設定
 logging.basicConfig(
@@ -71,7 +67,7 @@ def build_task(company_name: str) -> str:
 
 async def research_company(
     company_name: str,
-    llm: ChatAnthropic,
+    llm: ChatOllama,
     browser: Browser,
 ) -> Optional[CompanyInfo]:
     """1社分の企業情報を収集する"""
