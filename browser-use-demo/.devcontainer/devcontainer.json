@@ -5,7 +5,7 @@
     "ghcr.io/devcontainers/features/common-utils:2": {}
   },
   "onCreateCommand": "pip install uv",
-  "postCreateCommand": "uv sync && uv run playwright install chromium --with-deps",
+  "postCreateCommand": "uv sync && uv run playwright install chromium --with-deps && curl -fsSL https://ollama.com/install.sh | sh && ollama serve & sleep 5 && ollama pull qwen2.5:7b",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -16,14 +16,5 @@
         "python.defaultInterpreterPath": ".venv/bin/python"
       }
     }
-  },
-  "secrets": {
-    "ANTHROPIC_API_KEY": {
-      "description": "Anthropic API key for Claude",
-      "documentationUrl": "https://console.anthropic.com/"
-    }
-  },
-  "remoteEnv": {
-    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
   }
 }

@@ -118,11 +118,12 @@ async def main() -> None:
 
     logger.info(f"{len(companies)} 社の情報収集を開始します")
 
-    # LLM 初期化（Anthropic Claude）
-    llm = ChatAnthropic(
-        model="claude-opus-4-6",
+    # LLM 初期化（Ollama）
+    # function calling 対応モデルを使用
+    # 他の選択肢: llama3.1:8b, mistral-nemo
+    llm = ChatOllama(
+        model="qwen2.5:7b",
         temperature=0.0,
-        max_tokens=4096,
     )
 
     # ブラウザ初期化（1インスタンスを使い回す）
