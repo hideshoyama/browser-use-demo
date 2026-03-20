@@ -12,7 +12,7 @@ from typing import Optional
 
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
-from browser_use import Agent, Browser, BrowserProfile
+from browser_use import Agent, Browser, BrowserConfig
 
 # ロギング設定
 logging.basicConfig(
@@ -131,7 +131,7 @@ async def main() -> None:
     # ローカルでブラウザの動きを確認したい場合は False に変更
     headless = True
     browser = Browser(
-        browser_profile=BrowserProfile(
+        config=BrowserConfig(
             headless=headless,
         )
     )
